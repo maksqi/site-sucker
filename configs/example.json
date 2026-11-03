@@ -1,0 +1,77 @@
+{
+  "start_url": "https://example.com/",
+  "destination": "downloads",
+  "ask_destination": false,
+  "limits": {
+    "max_depth_enabled": true,
+    "max_depth": 3,
+    "max_files_enabled": true,
+    "max_files": 500,
+    "min_size_enabled": false,
+    "min_size_kb": 0,
+    "max_size_enabled": true,
+    "max_size_kb": 10000,
+    "min_image_enabled": false,
+    "min_image_width": 64,
+    "min_image_height": 64
+  },
+  "network": {
+    "connections": 10,
+    "attempts": 2,
+    "timeout_seconds": 30,
+    "delay_milliseconds": 0,
+    "max_redirects": 10,
+    "user_agent": "Mozilla/5.0 SiteSucker/1.0",
+    "insecure_tls": false,
+    "headers": {},
+    "proxy": {
+      "type": "none",
+      "address": "",
+      "username": "",
+      "password": ""
+    }
+  },
+  "browser": {
+    "mode": "auto",
+    "executable_path": "",
+    "wait_milliseconds": 1500,
+    "headless": true,
+    "auto_scroll": true,
+    "viewport_width": 1440,
+    "viewport_height": 900,
+    "auto_geo": true,
+    "locale": "",
+    "timezone": ""
+  },
+  "scope": {
+    "host_policy": "host",
+    "external_assets": true,
+    "keep_query": true,
+    "respect_robots": true,
+    "include_pattern": "",
+    "exclude_pattern": "",
+    "crawl_nofollow_links": false
+  },
+  "output": {
+    "create_host_folder": true,
+    "localize_links": true,
+    "replacement": "newer",
+    "preserve_times": true,
+    "save_error_pages": false
+  },
+  "filters": {
+    "html": true,
+    "styles": true,
+    "scripts": true,
+    "images": true,
+    "fonts": true,
+    "media": true,
+    "documents": true,
+    "other": true
+  },
+  "authentication": {
+    "username": "",
+    "password": "",
+    "cookie": ""
+  }
+}

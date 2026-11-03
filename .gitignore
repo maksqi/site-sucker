@@ -1,0 +1,23 @@
+# Build output
+/bin/
+/site-sucker
+/site-sucker.exe
+
+# Local settings and downloaded sites
+/.site-sucker.json
+/downloads/
+
+# OS and editor files
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# mygo
+/build/
+/.mygo/
+mygo_windows_*.syso
+
+# Go test binaries and coverage profiles
+*.test
+*.out

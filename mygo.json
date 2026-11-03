@@ -1,0 +1,7 @@
+{
+  "name": "Site Sucker",
+  "identifier": "io.github.site-sucker.app",
+  "version": "1.0.0",
+  "main": "./cmd/site-sucker",
+  "out": "build"
+}
