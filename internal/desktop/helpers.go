@@ -1,7 +1,6 @@
 package desktop
 
 import (
-	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -29,34 +28,6 @@ func proxyConfig(cfg config.Config) config.Config {
 		Password: cfg.Network.Proxy.Password,
 	}
 	return out
-}
-
-// interactiveConfig prepares the settings of the interactive browser and
-// the page it opens: the start URL when it is valid, else a blank tab.
-func interactiveConfig(cfg config.Config) (config.Config, string, error) {
-	out := proxyConfig(cfg)
-	out.Browser.ExecutablePath = strings.TrimSpace(cfg.Browser.ExecutablePath)
-	out.Browser.AutoGeo = cfg.Browser.AutoGeo
-	startURL := strings.TrimSpace(cfg.StartURL)
-	parsed, err := url.Parse(startURL)
-	if err != nil || parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") {
-		startURL = "about:blank"
-		out.StartURL = "https://example.com/"
-	} else {
-		out.StartURL = parsed.String()
-	}
-	if err := out.Validate(); err != nil {
-		return out, "", err
-	}
-	return out, startURL, nil
-}
-
-// proxyRoute names the route of cfg for status lines.
-func proxyRoute(cfg config.Config) string {
-	if cfg.Network.Proxy.Type == config.ProxyNone {
-		return "direct connection"
-	}
-	return strings.ToUpper(cfg.Network.Proxy.Type)
 }
 
 // logEntryFor turns a crawler event into a log line; events that only move
@@ -106,7 +77,7 @@ func statsFrom(s crawler.Stats) Stats {
 func profileFrom(p crawler.ProxyProfile) ProxyProfile {
 	return ProxyProfile{
 		IP: p.IP, Country: p.Country, CountryCode: p.CountryCode, Region: p.Region,
-		City: p.City, Flag: p.Flag, Timezone: p.Timezone, Locale: p.Locale, ISP: p.ISP,
+		City: p.City, Flag: p.Flag, ISP: p.ISP,
 		Summary: p.Summary(),
 	}
 }

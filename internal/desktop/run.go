@@ -1,6 +1,5 @@
 // Package desktop is the Site Sucker desktop app: a window of native UI,
-// drawn by mygo in the look of a SwiftUI app on macOS, over the engine that
-// runs the crawls.
+// drawn by mygo in the look of Hex, over the engine that runs the crawls.
 package desktop
 
 import (
@@ -24,6 +23,18 @@ func Run() {
 	a := newApp(system{})
 	// The window opens before the user can ask for a dialog.
 	a.sys = desktopSystem(func() *mygo.Window { return a.win })
+	if v := app.Version(); v != "" {
+		a.version = v
+	}
+	// The appearance chosen in Settings applies from the start.
+	if path, err := prefsPath(); err == nil {
+		if p, err := readPrefs(path); err == nil {
+			a.prefs = p
+		} else {
+			log.Printf("preferences: %v", err)
+		}
+	}
+	mygo.Theme.SetSource(a.prefs.Theme)
 
 	app.WhenReady(func() {
 		a.win = openWindow(a)
@@ -31,7 +42,7 @@ func Run() {
 		app.SetMenu(buildMenu(a))
 	})
 	// Closing the window quits, as in every version of the app, after
-	// stopping the crawl and the interactive browser.
+	// stopping the crawl.
 	app.OnWindowAllClosed(func() {
 		a.engine.Shutdown()
 		app.Quit()
@@ -43,21 +54,22 @@ func Run() {
 }
 
 func openWindow(a *app) *mygo.Window {
+	// The sizes are the window's, which the interface's zoom fills.
 	opts := mygo.WindowOptions{
 		Title:          "Site Sucker",
-		Width:          1180,
-		Height:         800,
-		MinWidth:       920,
-		MinHeight:      620,
+		Width:          1280,
+		Height:         860,
+		MinWidth:       960,
+		MinHeight:      640,
 		StateKey:       "main",
 		TitleBarStyle:  mygo.TitleBarHidden,
-		TitleBarHeight: barHeight,
+		TitleBarHeight: headerHeight,
 		Content:        ui.View(a.view),
 	}
 	if runtime.GOOS == "darwin" {
-		// The traffic lights sit in the top of the floating sidebar, level
-		// with the toolbar's middle.
-		opts.TrafficLightPosition = &mygo.Point{X: 21, Y: 19}
+		// The traffic lights sit in the top of the sidebar, above its
+		// items.
+		opts.TrafficLightPosition = &mygo.Point{X: 18, Y: 14}
 	}
 	return mygo.NewWindow(opts)
 }
@@ -103,7 +115,15 @@ func desktopSystem(win func() *mygo.Window) system {
 				CreateDirectories: true,
 			})
 		},
-		openPath: mygo.Shell.OpenPath,
+		openPath:   mygo.Shell.OpenPath,
+		applyTheme: mygo.Theme.SetSource,
+		savePrefs: func(p prefs) error {
+			path, err := prefsPath()
+			if err != nil {
+				return err
+			}
+			return writePrefs(path, p)
+		},
 	}
 }
 
@@ -125,7 +145,7 @@ func buildMenu(a *app) *mygo.Menu {
 		items = append(items, &mygo.MenuItem{Label: "Site Sucker", Submenu: []*mygo.MenuItem{
 			{Label: "About Site Sucker", Click: func(*mygo.MenuItem, *mygo.Window) { showAbout() }},
 			mygo.Separator(),
-			{Label: "Settings…", Accelerator: "CmdOrCtrl+,", Click: do(func() { a.section = secLimits })},
+			{Label: "Settings…", Accelerator: "CmdOrCtrl+,", Click: do(func() { a.section = secSettings })},
 			mygo.Separator(),
 			{Role: mygo.RoleServices},
 			mygo.Separator(),
@@ -149,10 +169,10 @@ func buildMenu(a *app) *mygo.Menu {
 		file = append(file, &mygo.MenuItem{Role: mygo.RoleQuit})
 	}
 
-	// The sections, as the sidebar lists them, by Cmd and their place.
-	view := []*mygo.MenuItem{{Label: "Download", Accelerator: "CmdOrCtrl+1", Click: do(func() { a.section = secDashboard })}}
+	// The pages, as the sidebar lists them, by Cmd and their place.
+	var view []*mygo.MenuItem
 	for i, it := range navItems {
-		view = append(view, &mygo.MenuItem{Label: it.label, Accelerator: fmt.Sprintf("CmdOrCtrl+%d", i+2), Click: do(func() { a.section = it.id })})
+		view = append(view, &mygo.MenuItem{Label: it.label, Accelerator: fmt.Sprintf("CmdOrCtrl+%d", i+1), Click: do(func() { a.section = it.id })})
 	}
 	view = append(view, mygo.Separator(), &mygo.MenuItem{Role: mygo.RoleToggleFullScreen})
 	if mygo.IsDev() {

@@ -4,95 +4,191 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// fontMono is the system's monospaced font, SF Mono on macOS, for URLs,
-// paths and headers. The rest of the interface is in the system's font.
-const fontMono = "monospace"
+// The interface's fonts, embedded in fonts.go: Inter for the interface and
+// IBM Plex Mono for URLs, paths and headers.
+const (
+	fontUI   = "Inter"
+	fontMono = "IBM Plex Mono"
+)
 
-// palette holds macOS's semantic colors, as AppKit gives them on macOS 27:
-// the window, the fills of grouped forms and controls, the labels in four
-// strengths, and the system colors. The accent is always the system's
-// blue, whatever the accent chosen in System Settings, and no color is
-// orange: warnings are yellow.
+// The weights of Inter the interface uses: regular text and labels, and
+// the medium of titles and buttons.
+const (
+	weightRegular = 440
+	weightMedium  = 530
+)
+
+// palette holds the colors of the interface, as Hex's OpenCode theme has
+// them: a deep window under a panel of the base color, layers of gray for
+// what is chosen and hovered, text and icons in three strengths, and the
+// accent, a blue, only on controls that are on.
 type palette struct {
 	dark bool
 
-	window, field, raised ui.Color
-	separator             ui.Color
-	shadow                ui.Color
-	// tooltip is the face of tooltips, light in light mode as AppKit's.
+	// deep fills the window and the sidebar; base the panel, the cards
+	// and the fields.
+	deep, base ui.Color
+	// layer1 … layer4 are the grays over base, from the faintest.
+	layer1, layer2, layer3, layer4 ui.Color
+
+	// borderWeak outlines the panel and the cards; muted divides rows;
+	// base and strong ring controls.
+	borderWeak, borderMuted, borderBase, borderStrong ui.Color
+
+	text, textMuted, textFaint ui.Color
+	icon, iconMuted, iconFaint ui.Color
+
+	// hover and pressed lie over what the pointer is on.
+	hover, pressed ui.Color
+
+	accent, accentText, focus ui.Color
+
+	danger, dangerSoft, success, successSoft, warning ui.Color
+
+	// button is the face of a secondary button, buttonHover and
+	// buttonPressed as the pointer is on it; contrast that of the primary
+	// one, with contrastText on it.
+	button, buttonHover, buttonPressed ui.Color
+	contrast, contrastText             ui.Color
+	// field is the face of text fields and check boxes.
+	field ui.Color
+
+	// tooltip is the face of tooltips and menus.
 	tooltip ui.Color
+	// segmentTrack is the track of a segmented control, segmentFace the
+	// face of its chosen segment.
+	segmentTrack, segmentFace ui.Color
 
-	// label, label2, label3 and label4 are AppKit's labelColor, then the
-	// secondary, tertiary and quaternary ones.
-	label, label2, label3, label4 ui.Color
-	// fill … fill4 are systemFill and the secondary, tertiary and
-	// quaternary ones; group is the face of a grouped form's section.
-	fill, fill2, fill3, fill4, group ui.Color
+	// shadowRaised is the shadow of cards, shadowControl of buttons and
+	// fields, shadowFloating of toasts; shadowPill is the shade under the
+	// chosen segment of a segmented control.
+	shadowRaised, shadowControl, shadowFloating []shadow
+	shadowPill                                  ui.Color
+}
 
-	accent, accentText, accentSoft, accentRing ui.Color
-
-	blue, green, red, yellow, pink, indigo, purple, cyan, gray ui.Color
+// shadow is a box shadow, as Element.Shadow takes it.
+type shadow struct {
+	x, y, blur, spread float32
+	color              ui.Color
 }
 
 var lightPalette = palette{
-	window:    ui.Hex("#ffffff"),
-	field:     ui.Hex("#ffffff"),
-	raised:    ui.Hex("#ffffff"),
-	separator: ui.RGBA(0, 0, 0, 0.1),
-	shadow:    ui.RGBA(0, 0, 0, 0.12),
-	tooltip:   ui.Hex("#f4f4f4"),
+	deep:   ui.Hex("#fafafa"),
+	base:   ui.Hex("#ffffff"),
+	layer1: ui.Hex("#fafafa"),
+	layer2: ui.Hex("#f2f2f2"),
+	layer3: ui.Hex("#eeeeee"),
+	layer4: ui.Hex("#dbdbdb"),
 
-	label:  ui.RGBA(0, 0, 0, 0.85),
-	label2: ui.RGBA(0, 0, 0, 0.5),
-	label3: ui.RGBA(0, 0, 0, 0.26),
-	label4: ui.RGBA(0, 0, 0, 0.1),
+	borderWeak:   ui.Hex("#dbdbdb"),
+	borderMuted:  ui.RGBA(0, 0, 0, 0.08),
+	borderBase:   ui.RGBA(0, 0, 0, 0.1),
+	borderStrong: ui.RGBA(0, 0, 0, 0.2),
 
-	fill:  ui.RGBA(0, 0, 0, 0.098),
-	fill2: ui.RGBA(0, 0, 0, 0.078),
-	fill3: ui.RGBA(0, 0, 0, 0.047),
-	fill4: ui.RGBA(0, 0, 0, 0.027),
-	group: ui.RGBA(0, 0, 0, 0.04),
+	text:      ui.Hex("#161616"),
+	textMuted: ui.Hex("#5c5c5c"),
+	textFaint: ui.Hex("#808080"),
+	icon:      ui.Hex("#3a3a3a"),
+	iconMuted: ui.Hex("#808080"),
+	iconFaint: ui.Hex("#aeaeae"),
 
-	blue:   ui.Hex("#0088ff"),
-	green:  ui.Hex("#34c759"),
-	red:    ui.Hex("#ff383c"),
-	yellow: ui.Hex("#ffcc00"),
-	pink:   ui.Hex("#ff2d55"),
-	indigo: ui.Hex("#6155f5"),
-	purple: ui.Hex("#cb30e0"),
-	cyan:   ui.Hex("#00c0e8"),
-	gray:   ui.Hex("#8e8e93"),
+	hover:   ui.RGBA(0, 0, 0, 0.04),
+	pressed: ui.RGBA(0, 0, 0, 0.08),
+
+	accent:     ui.Hex("#3b5cf6"),
+	accentText: ui.Hex("#3b5cf6"),
+	focus:      ui.Hex("#7698fd"),
+
+	danger:      ui.Hex("#b82d35"),
+	dangerSoft:  ui.Hex("#fcebeb"),
+	success:     ui.Hex("#198b43"),
+	successSoft: ui.Hex("#e7f9ea"),
+	warning:     ui.Hex("#a15c00"),
+
+	button:        ui.Hex("#ffffff"),
+	buttonHover:   ui.Hex("#fafafa"),
+	buttonPressed: ui.Hex("#f2f2f2"),
+	contrast:      ui.Hex("#242424"),
+	contrastText:  ui.Hex("#ffffff"),
+	field:         ui.Hex("#ffffff"),
+	tooltip:       ui.Hex("#242424"),
+	segmentTrack:  ui.Hex("#f2f2f2"),
+	segmentFace:   ui.Hex("#ffffff"),
+
+	shadowRaised: []shadow{
+		{0, 2, 4, 0, ui.RGBA(0, 0, 0, 0.04)},
+		{0, 1, 2, -1, ui.RGBA(0, 0, 0, 0.08)},
+	},
+	shadowControl: []shadow{
+		{0, 1, 1.5, 0, ui.RGBA(0, 0, 0, 0.1)},
+		{0, 0, 0, 0.5, ui.RGBA(0, 0, 0, 0.14)},
+	},
+	shadowFloating: []shadow{
+		{0, 8, 16, 0, ui.RGBA(0, 0, 0, 0.04)},
+		{0, 4, 8, 0, ui.RGBA(0, 0, 0, 0.08)},
+		{0, 0, 0, 0.5, ui.RGBA(0, 0, 0, 0.12)},
+	},
+	shadowPill: ui.RGBA(0, 0, 0, 0.08),
 }
 
 var darkPalette = palette{
-	dark:      true,
-	window:    ui.Hex("#1e1e1e"),
-	field:     ui.RGBA(255, 255, 255, 0.05),
-	raised:    ui.RGBA(255, 255, 255, 0.2),
-	separator: ui.RGBA(255, 255, 255, 0.1),
-	shadow:    ui.RGBA(0, 0, 0, 0.4),
-	tooltip:   ui.Hex("#323232"),
+	dark:   true,
+	deep:   ui.Hex("#080808"),
+	base:   ui.Hex("#161616"),
+	layer1: ui.Hex("#242424"),
+	layer2: ui.Hex("#2e2e2e"),
+	layer3: ui.Hex("#3a3a3a"),
+	layer4: ui.Hex("#5c5c5c"),
 
-	label:  ui.RGBA(255, 255, 255, 0.85),
-	label2: ui.RGBA(255, 255, 255, 0.55),
-	label3: ui.RGBA(255, 255, 255, 0.25),
-	label4: ui.RGBA(255, 255, 255, 0.1),
+	borderWeak:   ui.Hex("#282828"),
+	borderMuted:  ui.RGBA(255, 255, 255, 0.08),
+	borderBase:   ui.RGBA(255, 255, 255, 0.1),
+	borderStrong: ui.RGBA(255, 255, 255, 0.2),
 
-	fill:  ui.RGBA(255, 255, 255, 0.098),
-	fill2: ui.RGBA(255, 255, 255, 0.078),
-	fill3: ui.RGBA(255, 255, 255, 0.047),
-	fill4: ui.RGBA(255, 255, 255, 0.027),
-	group: ui.RGBA(255, 255, 255, 0.05),
+	text:      ui.Hex("#fafafa"),
+	textMuted: ui.Hex("#aeaeae"),
+	textFaint: ui.Hex("#808080"),
+	icon:      ui.Hex("#dbdbdb"),
+	iconMuted: ui.Hex("#808080"),
+	iconFaint: ui.Hex("#5c5c5c"),
 
-	blue:   ui.Hex("#0091ff"),
-	green:  ui.Hex("#30d158"),
-	red:    ui.Hex("#ff4245"),
-	yellow: ui.Hex("#ffd600"),
-	pink:   ui.Hex("#ff375f"),
-	indigo: ui.Hex("#6d7cff"),
-	purple: ui.Hex("#db34f2"),
-	cyan:   ui.Hex("#3cd3fe"),
-	gray:   ui.Hex("#98989d"),
+	hover:   ui.RGBA(255, 255, 255, 0.06),
+	pressed: ui.RGBA(255, 255, 255, 0.1),
+
+	accent:     ui.Hex("#3b5cf6"),
+	accentText: ui.Hex("#a2bcff"),
+	focus:      ui.Hex("#7698fd"),
+
+	danger:      ui.Hex("#f17471"),
+	dangerSoft:  ui.Hex("#461516"),
+	success:     ui.Hex("#6bd586"),
+	successSoft: ui.Hex("#14361d"),
+	warning:     ui.Hex("#f0b44c"),
+
+	button:        ui.RGBA(255, 255, 255, 0.06),
+	buttonHover:   ui.RGBA(255, 255, 255, 0.1),
+	buttonPressed: ui.RGBA(255, 255, 255, 0.14),
+	contrast:      ui.Hex("#ededed"),
+	contrastText:  ui.Hex("#161616"),
+	field:         ui.RGBA(255, 255, 255, 0.03),
+	tooltip:       ui.Hex("#2e2e2e"),
+	segmentTrack:  ui.Hex("#242424"),
+	segmentFace:   ui.Hex("#3a3a3a"),
+
+	shadowRaised: []shadow{
+		{0, 2, 4, 0, ui.RGBA(0, 0, 0, 0.3)},
+		{0, 1, 2, 0, ui.RGBA(0, 0, 0, 0.3)},
+	},
+	shadowControl: []shadow{
+		{0, 1, 2, 0, ui.RGBA(0, 0, 0, 0.4)},
+		{0, 0, 0, 0.5, ui.RGBA(255, 255, 255, 0.2)},
+	},
+	shadowFloating: []shadow{
+		{0, 8, 16, 0, ui.RGBA(0, 0, 0, 0.4)},
+		{0, 4, 8, 0, ui.RGBA(0, 0, 0, 0.3)},
+		{0, 0, 0, 0.5, ui.RGBA(255, 255, 255, 0.16)},
+	},
+	shadowPill: ui.RGBA(0, 0, 0, 0.4),
 }
 
 // paletteFor returns the palette of an appearance.
@@ -104,52 +200,51 @@ func paletteFor(dark bool) *palette {
 	return p
 }
 
-func init() {
-	for _, p := range []*palette{&lightPalette, &darkPalette} {
-		p.accent = p.blue
-		p.accentText = ui.RGB(255, 255, 255)
-		p.accentSoft = p.blue.Alpha(0.15)
-		p.accentRing = p.blue.Alpha(0.5)
-	}
-}
-
 // applyPalette dresses the theme of the frame, for the widgets of package
-// ui, in the palette's colors and the system's font.
+// ui, in the palette's colors and Inter.
 func applyPalette(t *ui.Theme, p *palette) {
 	t.Dark = p.dark
-	t.Background = p.window
-	t.Surface = p.fill3
-	t.SurfaceHover = p.fill2
-	t.SurfacePressed = p.fill
-	t.Border = p.fill
-	t.Text = p.label
-	t.TextMuted = p.label2
+	t.Background = p.deep
+	t.Surface = p.button
+	t.SurfaceHover = p.hover
+	t.SurfacePressed = p.pressed
+	t.Border = p.borderBase
+	t.Text = p.text
+	t.TextMuted = p.textMuted
 	t.Accent = p.accent
 	t.AccentHover = p.accent.Mix(ui.RGB(0, 0, 0), 0.08)
-	t.AccentPressed = p.accent.Mix(ui.RGB(0, 0, 0), 0.18)
-	t.AccentText = p.accentText
-	t.Danger = p.red
-	t.Warning = p.yellow
-	t.Success = p.green
-	t.Selection = p.accent.Alpha(0.3)
-	t.Focus = p.accentRing
-	t.Inverse, t.InverseText = p.tooltip, p.label.Alpha(1)
-	t.Scrollbar = p.label.Alpha(0.3)
-	t.Radius = 7
-	t.Font = ""
+	t.AccentPressed = p.accent.Mix(ui.RGB(0, 0, 0), 0.16)
+	t.AccentText = ui.RGB(255, 255, 255)
+	// The accent stays when the window is in the background, as Hex's.
+	t.InactiveAccent = p.accent
+	t.Danger = p.danger
+	t.Warning = p.warning
+	t.Success = p.success
+	t.Selection = p.accent.Alpha(0.25)
+	t.Focus = p.focus
+	t.FocusRingWidth = 1
+	t.FocusRingOffset = 0
+	t.Inverse, t.InverseText = p.tooltip, ui.RGB(255, 255, 255)
+	t.Scrollbar = p.text.Alpha(0.25)
+	t.Radius = 6
+	t.Font = fontUI
 	t.FontSize = 13
 }
 
-// groupBox gives an element the face of a section of a grouped form.
-func (p *palette) groupBox(e ui.Element) ui.Element {
-	return e.Radius(12).Background(p.group)
+func shadows(e ui.Element, list []shadow) ui.Element {
+	for _, s := range list {
+		e.Shadow(s.x, s.y, s.blur, s.spread, s.color)
+	}
+	return e
 }
 
-// ink is the label's color at alpha: black in light mode, white in dark,
-// as AppKit's fills.
-func (p *palette) ink(alpha float32) ui.Color {
-	if p.dark {
-		return ui.RGBA(255, 255, 255, alpha)
-	}
-	return ui.RGBA(0, 0, 0, alpha)
+// card gives an element the face of a card: the base color, rounded and
+// outlined, on a soft shadow.
+func (p *palette) card(e ui.Element) ui.Element {
+	return shadows(e.Radius(8).Background(p.base).Border(1, p.borderBase), p.shadowRaised)
+}
+
+// control gives a button or a field its shadow and hairline ring.
+func (p *palette) control(e ui.Element) ui.Element {
+	return shadows(e, p.shadowControl)
 }

@@ -2,7 +2,13 @@
 
 [![CI](https://github.com/maksqi/site-sucker/actions/workflows/ci.yml/badge.svg)](https://github.com/maksqi/site-sucker/actions/workflows/ci.yml)
 
-Site Sucker is a desktop website downloader written in Go. It creates a browsable local copy of HTML pages and their CSS, JavaScript, images, fonts, media, and other linked files. The desktop app is built with [mygo](https://github.com/egoist/mygo): its interface is native UI written in Go with package `mygo/ui` and drawn on the GPU (Metal, Direct3D 11 or OpenGL), with no webview, HTML or JavaScript. It looks like a SwiftUI app on macOS: the system font and accent color, a floating sidebar and toolbar of Liquid Glass (mygo's `plugins/glass`), grouped forms as in System Settings, and the system's own menus for pop-up buttons.
+Site Sucker is a desktop website downloader written in Go. It creates a browsable local copy of HTML pages and their CSS, JavaScript, images, fonts, media, and other linked files. The desktop app is built with [mygo](https://github.com/egoist/mygo): its interface is native UI written in Go with package `mygo/ui` and drawn on the GPU (Metal, Direct3D 11 or OpenGL), with no webview, HTML or JavaScript. Its look follows [Hex](https://github.com/anomalyco/hex): a plain sidebar on the window's deep gray, the page in an outlined panel beside it, settings in cards of rows, Inter and IBM Plex Mono, and a blue accent only on controls that are on. It has a light and a dark theme: Auto follows the system's appearance, and Settings can fix either one.
+
+![Site Sucker downloading a site, in the dark theme](docs/screenshots/crawl-dark.png)
+
+| Start a download | Crawl settings |
+| --- | --- |
+| ![The Download page with the address bar and the settings the crawl starts with](docs/screenshots/download.png) | ![The Crawl page with limits and link settings](docs/screenshots/crawl-settings.png) |
 
 ## Features
 
@@ -18,8 +24,9 @@ Site Sucker is a desktop website downloader written in Go. It creates a browsabl
 - File replacement modes, remote modification times, MIME filters, and minimum image dimensions.
 - Basic Auth, Cookie, custom headers, User-Agent, and optional insecure TLS.
 - JSON profile import/export and a live, filterable event log with a per-second activity chart.
-- Proxy geolocation with country, flag, city, ISP, IANA timezone, and automatic Chromium locale emulation.
-- A standalone regular Chromium process without CDP automation for manual browsing through the configured proxy.
+- A proxy check that shows the exit IP, country, city, and ISP.
+- Light and dark themes, following the system or chosen in Settings and kept between launches.
+- Three interface sizes in Settings (Small, Medium, Large), Medium by default.
 
 ## Requirements
 
@@ -66,6 +73,12 @@ The interface's tests run the views headless with `ui.Tester`. To look at every 
 SITE_SUCKER_SNAPSHOTS=/tmp/snapshots go test ./internal/desktop -run Snapshots
 ```
 
+The screenshots in this README are drawn the same way, at twice the size:
+
+```bash
+SITE_SUCKER_SCREENSHOTS=$PWD/docs/screenshots go test ./internal/desktop -run Screenshots
+```
+
 Run the optional integration tests against installed Chrome/Chromium:
 
 ```bash
@@ -80,17 +93,9 @@ SITE_SUCKER_BROWSER_TEST=1 go test ./internal/crawler -run Browser -v
 
 Chromium executes page JavaScript, waits for the configured delay, optionally scrolls for lazy-loaded content, captures final HTML, follows rendered links, and records loaded resource URLs. It deliberately does not click arbitrary buttons because a generic click crawler can submit forms, delete data, log out, or trigger purchases.
 
-When automatic proxy geolocation is enabled, Site Sucker resolves the current exit IP through the proxy before crawling. Chromium then receives the matching locale, `Accept-Language`, `navigator.language`, and IANA timezone. For an Italian exit this is normally `it-IT` with `Europe/Rome`. Manual locale and timezone fields are available on the Chromium tab as a fallback or override when auto detection is disabled.
-
 When a proxy is active, Chromium also disables non-proxied WebRTC UDP to reduce the chance of bypassing the configured route.
 
-Chromium always runs with its sandbox. Site Sucker never passes `--no-sandbox` or another switch that turns the sandbox off, in the crawler and in the interactive browser. `chromedp` adds `--no-sandbox` on its own when the program runs as root, and Site Sucker turns that off. Because Chromium does not start as root with its sandbox, run Site Sucker as a regular user for the `auto` and `browser` modes (for example in a Linux container).
-
-## Interactive Browser
-
-Use `Proxy → Interactive browser → Open browser` to launch a separate visible Chromium process. It uses the selected HTTP, HTTPS, or SOCKS5 proxy, proxy credentials, and WebRTC proxy-leak protection, but it is not connected to `chromedp` or the Chrome DevTools Protocol. The interactive mode does not inject JavaScript, alter `navigator`, force a User-Agent, or emulate locale/timezone; AutoGeo is used only to display the proxy exit profile. The start URL is opened when valid, otherwise Chromium opens a blank tab. You can use the address bar, navigate manually, open tabs, and sign in normally. Cookies, custom site headers, and Basic Auth values from the crawler are not injected into this manual browser. Closing its window or pressing `Close browser` also stops the local proxy bridge. A temporary profile keeps cookies only for that session.
-
-Websites can still observe the browser's real fingerprint, the proxy exit IP, and normal interactive behavior. Site Sucker does not attempt to spoof fingerprint values or bypass anti-bot and anti-fraud checks.
+Chromium always runs with its sandbox. Site Sucker never passes `--no-sandbox` or another switch that turns the sandbox off. `chromedp` adds `--no-sandbox` on its own when the program runs as root, and Site Sucker turns that off. Because Chromium does not start as root with its sandbox, run Site Sucker as a regular user for the `auto` and `browser` modes (for example in a Linux container).
 
 ## Proxy Formats
 
@@ -105,11 +110,11 @@ socks5://127.0.0.1:1080
 
 Credentials can be entered in separate GUI fields. They are URL-encoded internally. Proxy and site passwords are stored as plain text when a JSON profile is exported, so profile files must be protected.
 
-The proxy check button does not require a start URL. It requests `ipwho.is` through the selected proxy and displays the resulting IP, country, flag, city, ISP, locale, and timezone without sending site cookies or site authorization headers.
+The proxy check button does not require a start URL. It requests `ipwho.is` through the selected proxy and displays the resulting IP, country, flag, city, region, and ISP without sending site cookies or site authorization headers.
 
 ## Profiles
 
-Use `File → Export Profile…` (⌘S) and `File → Import Profile…` (⌘O), or the buttons at the bottom of the sidebar. A complete sample is available at `configs/example.json`.
+Use `File → Export Profile…` (⌘S) and `File → Import Profile…` (⌘O), or the buttons in `Settings → Profiles`. A complete sample is available at `configs/example.json`.
 
 Important internal values for hand-written profiles:
 
@@ -126,6 +131,7 @@ internal/config/       defaults, validation, JSON profiles
 internal/crawler/      scheduler, HTTP/browser fetchers, proxy bridge, parsers, storage
 internal/desktop/      mygo app: the engine that runs crawls, and the native UI, its window and menus
 internal/desktop/icons Lucide icons (ISC)
+internal/desktop/fonts Inter and IBM Plex Mono (OFL)
 resources/             app icon
 configs/               example profiles
 .github/               CI and Dependabot
@@ -139,4 +145,4 @@ Only download sites and content you are authorized to copy. Respect copyright, t
 
 ## License
 
-[MIT](LICENSE). The Lucide icons in `internal/desktop/icons` are under the [ISC License](internal/desktop/icons/LICENSE).
+[MIT](LICENSE). The Lucide icons in `internal/desktop/icons` are under the [ISC License](internal/desktop/icons/LICENSE), and the Inter and IBM Plex Mono fonts in `internal/desktop/fonts` under the [SIL Open Font License](internal/desktop/fonts/LICENSE).

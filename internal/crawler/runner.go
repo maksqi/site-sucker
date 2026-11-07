@@ -24,18 +24,17 @@ import (
 )
 
 type Runner struct {
-	cfg        config.Config
-	http       *httpFetcher
-	browser    *browserFetcher
-	browserMu  sync.Mutex
-	robots     *robotsCache
-	control    *Control
-	emit       func(Event)
-	counters   counters
-	start      *url.URL
-	include    *regexp.Regexp
-	exclude    *regexp.Regexp
-	startupLog string
+	cfg       config.Config
+	http      *httpFetcher
+	browser   *browserFetcher
+	browserMu sync.Mutex
+	robots    *robotsCache
+	control   *Control
+	emit      func(Event)
+	counters  counters
+	start     *url.URL
+	include   *regexp.Regexp
+	exclude   *regexp.Regexp
 }
 
 type processResult struct {
@@ -49,18 +48,6 @@ func Run(ctx context.Context, cfg config.Config, control *Control, emit func(Eve
 	if strings.TrimSpace(cfg.Destination) == "" {
 		return Stats{}, errors.New("choose a destination folder before starting")
 	}
-	startupLog := ""
-	if cfg.Browser.Mode != config.ModeHTTP {
-		profile, geoErr := applyAutomaticProxyGeo(ctx, &cfg)
-		if geoErr != nil {
-			startupLog = "Could not detect the proxy geo profile: " + geoErr.Error()
-		} else if profile.IP != "" {
-			startupLog = fmt.Sprintf("Proxy geo profile: %s %s, locale=%s, timezone=%s", profile.Flag, profile.Country, cfg.Browser.Locale, cfg.Browser.Timezone)
-		}
-		if err := ctx.Err(); err != nil {
-			return Stats{}, err
-		}
-	}
 	start, _ := url.Parse(strings.TrimSpace(cfg.StartURL))
 	start = canonicalURL(start, cfg.Scope.KeepQuery)
 	httpClient, err := newHTTPFetcher(cfg)
@@ -72,8 +59,7 @@ func Run(ctx context.Context, cfg config.Config, control *Control, emit func(Eve
 	}
 	runner := &Runner{
 		cfg: cfg, http: httpClient, control: control, emit: emit, start: start,
-		robots:     newRobotsCache(httpClient, "SiteSucker", cfg.Network.UserAgent),
-		startupLog: startupLog,
+		robots: newRobotsCache(httpClient, "SiteSucker", cfg.Network.UserAgent),
 	}
 	defer runner.close()
 	if cfg.Scope.IncludePattern != "" {
@@ -90,22 +76,10 @@ func Run(ctx context.Context, cfg config.Config, control *Control, emit func(Eve
 	return runner.run(ctx)
 }
 
-func hasHeader(headers map[string]string, expected string) bool {
-	for name := range headers {
-		if strings.EqualFold(strings.TrimSpace(name), expected) {
-			return true
-		}
-	}
-	return false
-}
-
 func (r *Runner) run(ctx context.Context) (Stats, error) {
 	r.counters.started = time.Now()
 	r.counters.discovered.Store(1)
 	r.send(Event{Type: EventStarted, URL: r.start.String(), Message: "Crawl started"})
-	if r.startupLog != "" {
-		r.send(Event{Type: EventLog, Message: r.startupLog})
-	}
 
 	visited := map[string]struct{}{r.start.String(): {}}
 	queue := []job{{URL: r.start, Depth: 0, Kind: KindDocument}}

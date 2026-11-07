@@ -1,14 +1,5 @@
 package desktop
 
-// BrowserState is the state of the interactive Chromium window.
-type BrowserState string
-
-const (
-	BrowserClosed   BrowserState = "closed"
-	BrowserStarting BrowserState = "starting"
-	BrowserOpen     BrowserState = "open"
-)
-
 // LogLevel classifies a log line.
 type LogLevel string
 
@@ -48,7 +39,6 @@ type Snapshot struct {
 	Running  bool
 	Paused   bool
 	Stopping bool
-	Browser  BrowserState
 	Status   string
 	Stats    Stats
 }
@@ -96,17 +86,6 @@ type ProxyProfile struct {
 	Region      string
 	City        string
 	Flag        string
-	Timezone    string
-	Locale      string
 	ISP         string
 	Summary     string
-}
-
-// BrowserInfo is the result of opening the interactive browser. Opened is
-// false when the start was canceled.
-type BrowserInfo struct {
-	Opened  bool
-	Route   string
-	Profile *ProxyProfile
-	Warning string
 }

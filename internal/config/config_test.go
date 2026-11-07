@@ -2,6 +2,7 @@ package config
 
 import (
 	"bytes"
+	"strings"
 	"testing"
 )
 
@@ -45,16 +46,21 @@ func TestDecodeRejectsTrailingJSON(t *testing.T) {
 	}
 }
 
-func TestBrowserGeoValidation(t *testing.T) {
-	cfg := Default()
-	cfg.StartURL = "https://example.com/"
-	cfg.Browser.Locale = "it-IT"
-	cfg.Browser.Timezone = "Europe/Rome"
-	if err := cfg.Validate(); err != nil {
-		t.Fatalf("Validate() error = %v", err)
+func TestDecodeDropsLegacyBrowserKeys(t *testing.T) {
+	legacy := `{"start_url":"https://example.com/","browser":{"mode":"browser","auto_geo":true,"locale":"it-IT","timezone":"Europe/Rome"}}`
+	cfg, err := Decode(strings.NewReader(legacy))
+	if err != nil {
+		t.Fatalf("Decode() error = %v", err)
 	}
-	cfg.Browser.Timezone = "Invalid/Timezone"
-	if err := cfg.Validate(); err == nil {
-		t.Fatal("Validate() accepted an invalid timezone")
+	if cfg.Browser.Mode != ModeBrowser || cfg.Browser.ViewportWidth != Default().Browser.ViewportWidth {
+		t.Fatalf("decoded browser settings = %#v", cfg.Browser)
+	}
+	for _, unknown := range []string{
+		`{"start_url":"https://example.com/","browser":{"mode":"browser","fingerprint":true}}`,
+		`{"start_url":"https://example.com/","locale":"it-IT"}`,
+	} {
+		if _, err := Decode(strings.NewReader(unknown)); err == nil {
+			t.Fatalf("Decode() accepted an unknown key: %s", unknown)
+		}
 	}
 }

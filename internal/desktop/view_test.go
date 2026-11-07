@@ -5,41 +5,59 @@ import (
 	"image/png"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 
 	"github.com/maksqi/site-sucker/internal/config"
 )
 
+// allSections are the pages, each with a text only it shows.
 var allSections = []struct {
-	id    section
-	title string
+	id   section
+	text string
 }{
-	{secDashboard, "A whole website, offline"},
-	{secLimits, "Guard against endless crawls and very large files"},
-	{secNetwork, "Apply to direct and proxy connections"},
-	{secChromium, "JavaScript rendering for React, Vue, Angular and lazy-loaded pages"},
-	{secScope, "Filters apply before a URL is queued"},
-	{secProxy, "HTTP, HTTPS and SOCKS5, with authentication"},
-	{secAuth, "Basic Auth, cookies and custom HTTP headers"},
-	{secOutput, "Where and how the local copy is saved"},
+	{secDashboard, "Download a website"},
+	{secCrawl, "Maximum depth"},
+	{secNetwork, "Parallel connections"},
+	{secBrowser, "Always Chromium"},
+	{secOutput, "Folder per host"},
+	{secSettings, "Theme"},
 }
 
 func newTestApp(t *testing.T) (*app, *ui.Tester) {
 	t.Helper()
-	a := newApp(system{
+	a := newApp(testSystem(nil, nil))
+	tt := ui.NewTester(a.view, 1280, 860)
+	tt.SetTitleBar(ui.TitleBar{Height: headerHeight, Left: 80})
+	return a, tt
+}
+
+// testSystem is a system without dialogs, whose appearance and
+// preferences go to theme and saved when they are not nil.
+func testSystem(theme *[]mygo.ThemeSource, saved *[]prefs) system {
+	return system{
 		chooseFolder:  func(string, string) (string, error) { return "", nil },
 		chooseBrowser: func() (string, error) { return "", nil },
 		openProfile:   func() (string, error) { return "", nil },
 		saveProfile:   func() (string, error) { return "", nil },
 		openPath:      func(string) error { return nil },
-	})
-	tt := ui.NewTester(a.view, 1180, 800)
-	tt.SetTitleBar(ui.TitleBar{Height: barHeight, Left: 80})
-	return a, tt
+		applyTheme: func(s mygo.ThemeSource) {
+			if theme != nil {
+				*theme = append(*theme, s)
+			}
+		},
+		savePrefs: func(p prefs) error {
+			if saved != nil {
+				*saved = append(*saved, p)
+			}
+			return nil
+		},
+	}
 }
 
 // crawlUpdate is an update of a crawl under way, with a line of each level.
@@ -51,7 +69,7 @@ func crawlUpdate(now time.Time) Update {
 	}
 	return Update{
 		State: Snapshot{
-			Running: true, Browser: BrowserClosed, Status: "Saved: https://example.com/about/",
+			Running: true, Status: "Saved: https://example.com/about/",
 			Stats: Stats{Discovered: 412, Processed: 287, Saved: 263, Skipped: 17, Failed: 7, Bytes: 18_400_000, StartedAtMs: ms - 95_000},
 		},
 		Reset:   true,
@@ -61,7 +79,7 @@ func crawlUpdate(now time.Time) Update {
 			{ID: 2, TimeMs: ms - 3000, Level: LevelSave, URL: "https://example.com/", Path: "/Users/ada/Downloads/site-sucker/example.com/index.html"},
 			{ID: 3, TimeMs: ms - 2000, Level: LevelSkip, URL: "https://example.com/logout", Message: "disallowed by robots.txt"},
 			{ID: 4, TimeMs: ms - 1000, Level: LevelError, URL: "https://example.com/missing.png", Message: "HTTP 404"},
-			{ID: 5, TimeMs: ms, Level: LevelInfo, Message: "Regular Chromium without CDP opened: direct connection"},
+			{ID: 5, TimeMs: ms, Level: LevelInfo, Message: "Chromium rendered https://example.com/app/"},
 		},
 	}
 }
@@ -73,8 +91,8 @@ func TestSectionsRender(t *testing.T) {
 		for _, s := range allSections {
 			a.section = s.id
 			tt.Frame()
-			if !tt.HasText(s.title) {
-				t.Errorf("dark %v, %s: no %q in %q", dark, s.id, s.title, tt.Texts())
+			if !tt.HasText(s.text) {
+				t.Errorf("dark %v, %s: no %q in %q", dark, s.id, s.text, tt.Texts())
 			}
 		}
 	}
@@ -82,7 +100,7 @@ func TestSectionsRender(t *testing.T) {
 
 func TestSidebarNavigates(t *testing.T) {
 	a, tt := newTestApp(t)
-	for _, name := range []string{"Limits", "Network", "Chromium", "Scope", "Proxy", "Authentication", "Files", "Download"} {
+	for _, name := range []string{"Crawl", "Network", "Browser", "Output", "Settings", "Download"} {
 		if err := tt.Click(name); err != nil {
 			t.Fatal(err)
 		}
@@ -90,10 +108,10 @@ func TestSidebarNavigates(t *testing.T) {
 	if a.section != secDashboard {
 		t.Fatalf("section %q", a.section)
 	}
-	if err := tt.Click("Scope"); err != nil {
+	if err := tt.Click("Crawl"); err != nil {
 		t.Fatal(err)
 	}
-	if a.section != secScope || !tt.HasText("Crawl scope") {
+	if a.section != secCrawl || !tt.HasText("Which links to follow") {
 		t.Fatalf("section %q, texts %q", a.section, tt.Texts())
 	}
 }
@@ -127,7 +145,7 @@ func TestTypingTheURL(t *testing.T) {
 
 func TestProxyType(t *testing.T) {
 	a, tt := newTestApp(t)
-	a.section = secProxy
+	a.section = secNetwork
 	tt.Frame()
 	// The type is a pop-up button, whose menu is the system's.
 	if err := tt.Click("No proxy"); err != nil {
@@ -145,22 +163,96 @@ func TestProxyType(t *testing.T) {
 	}
 }
 
-func TestAccentIsBlue(t *testing.T) {
+func TestAccentIsTheThemes(t *testing.T) {
 	a, tt := newTestApp(t)
 	// An orange accent chosen in System Settings does not show.
 	tt.SetPreferences(ui.Preferences{Accent: ui.Hex("#f7821b")})
+	want := ui.Hex("#3b5cf6")
 	for _, dark := range []bool{false, true} {
 		tt.SetDark(dark)
 		tt.Frame()
-		want := paletteFor(dark).blue
-		if a.pal.accent != want || a.theme.Accent != want {
+		if a.pal.accent != want || a.theme.Accent != want || a.theme.InactiveAccent != want {
 			t.Fatalf("dark %v: accent %v, theme's %v", dark, a.pal.accent, a.theme.Accent)
 		}
 	}
 }
 
+func TestThemeSwitch(t *testing.T) {
+	var applied []mygo.ThemeSource
+	var saved []prefs
+	a := newApp(testSystem(&applied, &saved))
+	tt := ui.NewTester(a.view, 1280, 860)
+	a.section = secSettings
+	tt.Frame()
+	if err := tt.Click("Dark"); err != nil {
+		t.Fatal(err)
+	}
+	if a.prefs.Theme != mygo.ThemeDark || len(applied) != 1 || applied[0] != mygo.ThemeDark {
+		t.Fatalf("theme %q, applied %q", a.prefs.Theme, applied)
+	}
+	if err := tt.Click("Auto"); err != nil {
+		t.Fatal(err)
+	}
+	zoom := defaultPrefs().Zoom
+	if want := []prefs{{mygo.ThemeDark, zoom}, {mygo.ThemeSystem, zoom}}; !slices.Equal(saved, want) {
+		t.Fatalf("saved %v, want %v", saved, want)
+	}
+	// The same choice again changes nothing.
+	if err := tt.Click("Auto"); err != nil {
+		t.Fatal(err)
+	}
+	if len(applied) != 2 {
+		t.Fatalf("applied %q", applied)
+	}
+}
+
+func TestInterfaceSize(t *testing.T) {
+	var saved []prefs
+	a := newApp(testSystem(nil, &saved))
+	tt := ui.NewTester(a.view, 1280, 860)
+	a.section = secSettings
+	tt.Frame()
+	if a.prefs.Zoom != 1.15 {
+		t.Fatalf("default zoom %v", a.prefs.Zoom)
+	}
+	if err := tt.Click("Large"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if a.prefs.Zoom != 1.3 || len(saved) != 1 || saved[0].Zoom != 1.3 {
+		t.Fatalf("zoom %v, saved %v", a.prefs.Zoom, saved)
+	}
+}
+
+func TestPrefsRoundTrip(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "prefs", "preferences.json")
+	if p, err := readPrefs(path); err != nil || p != defaultPrefs() {
+		t.Fatalf("no file: %v, %v", p, err)
+	}
+	if err := writePrefs(path, prefs{Theme: mygo.ThemeLight, Zoom: 1.3}); err != nil {
+		t.Fatal(err)
+	}
+	if p, err := readPrefs(path); err != nil || p != (prefs{mygo.ThemeLight, 1.3}) {
+		t.Fatalf("read back %v, %v", p, err)
+	}
+	// What is unknown, or missing as in the preferences of earlier
+	// versions, reads as the default.
+	if err := os.WriteFile(path, []byte(`{"theme":"sepia","zoom":7}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if p, _ := readPrefs(path); p != defaultPrefs() {
+		t.Fatalf("unknown values read as %v", p)
+	}
+	if err := os.WriteFile(path, []byte(`{"theme":"dark"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if p, _ := readPrefs(path); p != (prefs{mygo.ThemeDark, defaultPrefs().Zoom}) {
+		t.Fatalf("no zoom reads as %v", p)
+	}
+}
+
 func TestNumberField(t *testing.T) {
-	a := newApp(system{})
+	a := newApp(testSystem(nil, nil))
 	count := 10
 	tt := ui.NewTester(func(c *ui.Context) {
 		ui.Column(c).Padding(20).Children(func() {
@@ -244,7 +336,7 @@ func TestFinishShowsAToast(t *testing.T) {
 }
 
 func TestLogKeepsTheNewest(t *testing.T) {
-	a := newApp(system{})
+	a := newApp(testSystem(nil, nil))
 	a.logFilter = LevelError
 	a.shownFilter = LevelError
 	var entries []LogEntry
@@ -300,4 +392,69 @@ func TestSnapshots(t *testing.T) {
 		tt.Frame()
 		save(tt, theme+"-running")
 	}
+}
+
+// TestScreenshots draws the README's screenshots at twice the size, into
+// SITE_SUCKER_SCREENSHOTS (docs/screenshots):
+//
+//	SITE_SUCKER_SCREENSHOTS=$PWD/docs/screenshots go test ./internal/desktop -run Screenshots
+func TestScreenshots(t *testing.T) {
+	dir := os.Getenv("SITE_SUCKER_SCREENSHOTS")
+	if dir == "" {
+		t.Skip("set SITE_SUCKER_SCREENSHOTS to a folder")
+	}
+	shoot := func(name string, dark bool, setup func(a *app)) {
+		a := newApp(testSystem(nil, nil))
+		a.cfg.Destination = "/Users/ada/Downloads/site-sucker"
+		a.version = "1.0.0"
+		tt := ui.NewTester(a.view, 1280, 820)
+		tt.SetScale(2)
+		tt.SetDark(dark)
+		tt.SetTitleBar(ui.TitleBar{Height: headerHeight, Left: 80})
+		setup(a)
+		tt.Frame()
+		tt.Advance(2 * time.Second)
+		f, err := os.Create(filepath.Join(dir, name+".png"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer f.Close()
+		if err := png.Encode(f, tt.Image()); err != nil {
+			t.Fatal(err)
+		}
+	}
+	shoot("download", false, func(a *app) { a.cfg.StartURL = "https://example.com/docs/" })
+	shoot("crawl-dark", true, func(a *app) {
+		a.cfg.StartURL = "https://example.com/docs/"
+		a.post(func() { a.apply(screenshotUpdate(time.Now())) })
+	})
+	shoot("crawl-settings", false, func(a *app) { a.section = secCrawl })
+}
+
+// screenshotUpdate is a crawl well under way, with a log of the kinds of
+// lines a real one shows.
+func screenshotUpdate(now time.Time) Update {
+	u := crawlUpdate(now)
+	u.State.Status = "Saved: https://example.com/docs/guides/install/"
+	u.State.Stats = Stats{Discovered: 1284, Processed: 917, Saved: 862, Skipped: 41, Failed: 3, Bytes: 48_700_000, StartedAtMs: now.UnixMilli() - 154_000}
+	ms := now.UnixMilli()
+	paths := []string{
+		"docs/", "docs/getting-started/", "assets/app.css", "assets/app.js", "docs/guides/", "images/hero.webp",
+		"docs/api/", "images/old-logo.png", "docs/guides/install/",
+	}
+	u.Log = u.Log[:0]
+	for i, path := range paths {
+		url := "https://example.com/" + path
+		e := LogEntry{ID: int64(i + 1), TimeMs: ms - int64(len(paths)-i)*700, Level: LevelSave, URL: url,
+			Path: "/Users/ada/Downloads/site-sucker/example.com/" + strings.TrimSuffix(path, "/") + map[bool]string{true: "/index.html", false: ""}[strings.HasSuffix(path, "/")]}
+		switch i {
+		case 4:
+			e.Level, e.Path, e.Message = LevelSkip, "", "disallowed by robots.txt"
+			e.URL = "https://example.com/admin/"
+		case 7:
+			e.Level, e.Path, e.Message = LevelError, "", "HTTP 404"
+		}
+		u.Log = append(u.Log, e)
+	}
+	return u
 }

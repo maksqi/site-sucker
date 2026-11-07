@@ -24,9 +24,9 @@ const (
 	sampleLimit  = 61
 )
 
-// engine runs the crawl and the interactive browser and keeps their state.
-// Its methods are safe from any goroutine; it reports every change through
-// sink, at most every flushInterval while a crawl runs.
+// engine runs the crawl and keeps its state. Its methods are safe from any
+// goroutine; it reports every change through sink, at most every
+// flushInterval while a crawl runs.
 type engine struct {
 	// sendMu orders updates: an update is built and handed to sink under
 	// it, so the window never sees an older state after a newer one.
@@ -50,14 +50,10 @@ type engine struct {
 	notice   *Notice
 	reset    bool
 	dirty    bool
-
-	browser        BrowserState
-	browserSession *crawler.BrowserSession
-	browserCancel  context.CancelFunc
 }
 
 func newEngine(sink func(Update)) *engine {
-	return &engine{sink: sink, status: "Ready to start", browser: BrowserClosed}
+	return &engine{sink: sink, status: "Ready to start"}
 }
 
 // Start validates cfg and starts the crawl in the background.
@@ -237,7 +233,7 @@ func (e *engine) Stop() {
 	e.publish()
 }
 
-// CheckProxy finds the exit IP, country and timezone of the proxy in cfg.
+// CheckProxy finds the exit IP and country of the proxy in cfg.
 // Only the network settings are used: no site cookies or authorization.
 func (e *engine) CheckProxy(ctx context.Context, cfg config.Config) (ProxyProfile, error) {
 	pcfg := proxyConfig(cfg)
@@ -257,113 +253,13 @@ func (e *engine) CheckProxy(ctx context.Context, cfg config.Config) (ProxyProfil
 	return profileFrom(profile), nil
 }
 
-// OpenBrowser starts a regular Chromium, without CDP, that browses through
-// the proxy in cfg. It returns once the browser runs.
-func (e *engine) OpenBrowser(cfg config.Config) (BrowserInfo, error) {
-	icfg, startURL, err := interactiveConfig(cfg)
-	if err != nil {
-		return BrowserInfo{}, err
-	}
-	e.mu.Lock()
-	if e.browserSession != nil || e.browserCancel != nil {
-		e.mu.Unlock()
-		return BrowserInfo{}, errors.New("the interactive browser is already open or starting")
-	}
-	ctx, cancel := context.WithCancel(context.Background())
-	e.browserCancel = cancel
-	e.browser = BrowserStarting
-	e.status = "Starting interactive Chromium..."
-	e.dirty = true
-	e.mu.Unlock()
-	e.publish()
-
-	session, err := crawler.OpenInteractiveBrowser(ctx, icfg, startURL)
-	if err != nil {
-		cancel()
-		e.mu.Lock()
-		e.browserCancel = nil
-		e.browser = BrowserClosed
-		e.status = "Could not start Chromium"
-		e.dirty = true
-		e.mu.Unlock()
-		e.publish()
-		if errors.Is(err, context.Canceled) {
-			return BrowserInfo{}, nil
-		}
-		return BrowserInfo{}, err
-	}
-
-	route := proxyRoute(icfg)
-	e.mu.Lock()
-	e.browserSession = session
-	e.browser = BrowserOpen
-	e.status = "Regular Chromium opened: " + route
-	e.appendLocked(LogEntry{Level: LevelInfo, Message: "Regular Chromium without CDP opened: " + route})
-	e.mu.Unlock()
-	e.publish()
-	go e.waitBrowser(session, cancel)
-
-	info := BrowserInfo{Opened: true, Route: route}
-	if profile := session.Profile(); profile.IP != "" {
-		p := profileFrom(profile)
-		info.Profile = &p
-	}
-	if warning := session.Warning(); warning != "" {
-		info.Warning = warning + "\nThe browser runs with its normal system fingerprint, without geo emulation."
-	}
-	return info, nil
-}
-
-// CloseBrowser closes the interactive browser and its proxy bridge.
-func (e *engine) CloseBrowser() {
-	e.mu.Lock()
-	cancel, session := e.browserCancel, e.browserSession
-	if cancel == nil && session == nil {
-		e.mu.Unlock()
-		return
-	}
-	e.status = "Closing interactive Chromium..."
-	e.dirty = true
-	e.mu.Unlock()
-	if cancel != nil {
-		cancel()
-	}
-	if session != nil {
-		go session.Close()
-	}
-	e.publish()
-}
-
-func (e *engine) waitBrowser(session *crawler.BrowserSession, cancel context.CancelFunc) {
-	<-session.Done()
-	cancel()
-	e.mu.Lock()
-	if e.browserSession != session {
-		e.mu.Unlock()
-		return
-	}
-	e.browserSession, e.browserCancel = nil, nil
-	e.browser = BrowserClosed
-	e.status = "Interactive Chromium closed"
-	e.appendLocked(LogEntry{Level: LevelInfo, Message: "Interactive Chromium closed"})
-	e.mu.Unlock()
-	e.publish()
-}
-
-// Shutdown stops the crawl and closes the interactive browser, before the
-// app quits.
+// Shutdown stops the crawl before the app quits.
 func (e *engine) Shutdown() {
 	e.mu.Lock()
-	cancel, browserCancel, session := e.cancel, e.browserCancel, e.browserSession
+	cancel := e.cancel
 	e.mu.Unlock()
 	if cancel != nil {
 		cancel()
-	}
-	if browserCancel != nil {
-		browserCancel()
-	}
-	if session != nil {
-		session.Close()
 	}
 }
 
@@ -398,7 +294,7 @@ func (e *engine) appendLocked(entry LogEntry) {
 func (e *engine) snapshotLocked() Snapshot {
 	return Snapshot{
 		Running: e.running, Paused: e.paused, Stopping: e.stopping,
-		Browser: e.browser, Status: e.status, Stats: e.stats,
+		Status: e.status, Stats: e.stats,
 	}
 }
 

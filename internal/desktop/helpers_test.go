@@ -29,38 +29,6 @@ func TestProxyConfigKeepsOnlyNetwork(t *testing.T) {
 	}
 }
 
-func TestInteractiveConfigStartURL(t *testing.T) {
-	cases := map[string]string{
-		"https://example.com/path": "https://example.com/path",
-		"":                         "about:blank",
-		"example.com":              "about:blank",
-		"ftp://example.com/":       "about:blank",
-	}
-	for input, want := range cases {
-		cfg := config.Default()
-		cfg.StartURL = input
-		cfg.Browser.ExecutablePath = " /usr/bin/chromium "
-		got, startURL, err := interactiveConfig(cfg)
-		if err != nil {
-			t.Fatalf("%q: %v", input, err)
-		}
-		if startURL != want {
-			t.Fatalf("%q: start URL %q, want %q", input, startURL, want)
-		}
-		if got.Browser.ExecutablePath != "/usr/bin/chromium" {
-			t.Fatalf("%q: executable %q", input, got.Browser.ExecutablePath)
-		}
-	}
-}
-
-func TestInteractiveConfigRejectsBadProxy(t *testing.T) {
-	cfg := config.Default()
-	cfg.Network.Proxy = config.Proxy{Type: config.ProxyHTTP}
-	if _, _, err := interactiveConfig(cfg); err == nil {
-		t.Fatal("expected an error for a proxy without an address")
-	}
-}
-
 func TestLogEntryFor(t *testing.T) {
 	levels := map[crawler.EventType]LogLevel{
 		crawler.EventSaved:    LevelSave,

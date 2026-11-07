@@ -38,10 +38,7 @@
     "headless": true,
     "auto_scroll": true,
     "viewport_width": 1440,
-    "viewport_height": 900,
-    "auto_geo": true,
-    "locale": "",
-    "timezone": ""
+    "viewport_height": 900
   },
   "scope": {
     "host_policy": "host",

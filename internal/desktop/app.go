@@ -22,24 +22,26 @@ type section string
 
 const (
 	secDashboard section = "dashboard"
-	secLimits    section = "limits"
+	secCrawl     section = "crawl"
 	secNetwork   section = "network"
-	secChromium  section = "chromium"
-	secScope     section = "scope"
-	secProxy     section = "proxy"
-	secAuth      section = "auth"
+	secBrowser   section = "browser"
 	secOutput    section = "output"
+	secSettings  section = "settings"
 )
 
-// system is what the app asks of the operating system: dialogs and the file
-// manager. The dialogs block, so they are called on goroutines; each
-// returns "" when the user cancels.
+// system is what the app asks of the operating system: dialogs, the file
+// manager and the appearance. The dialogs block, so they are called on
+// goroutines; each returns "" when the user cancels.
 type system struct {
 	chooseFolder  func(title, current string) (string, error)
 	chooseBrowser func() (string, error)
 	openProfile   func() (string, error)
 	saveProfile   func() (string, error)
 	openPath      func(path string) error
+	// applyTheme sets the appearance of the app; savePrefs keeps the
+	// preferences for the next launch.
+	applyTheme func(mygo.ThemeSource)
+	savePrefs  func(prefs) error
 }
 
 // app is the state of the window, which its view shows. It lives on the
@@ -54,6 +56,8 @@ type app struct {
 
 	cfg         config.Config
 	headersText string
+	prefs       prefs
+	version     string
 	section     section
 	snap        Snapshot
 	activity    activityData
@@ -81,9 +85,8 @@ type app struct {
 	showProxyPassword bool
 	showAuthPassword  bool
 
-	pal       *palette
-	theme     ui.Theme
-	sideTheme ui.Theme // the sidebar's
+	pal   *palette
+	theme ui.Theme
 }
 
 func newApp(sys system) *app {
@@ -92,8 +95,10 @@ func newApp(sys system) *app {
 		sys:         sys,
 		cfg:         cfg,
 		headersText: formatHeaders(cfg.Network.Headers),
+		prefs:       defaultPrefs(),
+		version:     "dev",
 		section:     secDashboard,
-		snap:        Snapshot{Status: "Ready to start", Browser: BrowserClosed},
+		snap:        Snapshot{Status: "Ready to start"},
 		activity:    activity(nil),
 		pal:         paletteFor(false),
 	}
@@ -419,45 +424,10 @@ func (a *app) checkProxy() {
 				a.fail("Proxy check failed", err)
 				return
 			}
-			a.rememberGeo(profile, key, true)
+			a.geo, a.geoKey = &profile, key
 			a.toast(NoticeSuccess, "Proxy works", strings.TrimSpace(fmt.Sprintf("%s %s · %s", profile.Flag, profile.Country, profile.IP)))
 		})
 	}()
-}
-
-func (a *app) openBrowser() {
-	cfg, _ := collectConfig(a.cfg, a.headersText, false)
-	key := a.cfg.Network.Proxy
-	go func() {
-		info, err := a.engine.OpenBrowser(cfg)
-		a.post(func() {
-			if err != nil {
-				a.fail("Could not start Chromium", err)
-				return
-			}
-			if !info.Opened {
-				return
-			}
-			if info.Profile != nil {
-				a.rememberGeo(*info.Profile, key, false)
-			}
-			if info.Warning != "" {
-				a.toast(NoticeWarning, "Chromium", info.Warning)
-			}
-		})
-	}()
-}
-
-func (a *app) closeBrowser() { a.engine.CloseBrowser() }
-
-// rememberGeo keeps the geo profile of a proxy, and with applyLocale fills
-// in Chromium's locale and time zone from it.
-func (a *app) rememberGeo(profile ProxyProfile, key config.Proxy, applyLocale bool) {
-	a.geo, a.geoKey = &profile, key
-	if applyLocale && a.cfg.Browser.AutoGeo {
-		a.cfg.Browser.Locale = profile.Locale
-		a.cfg.Browser.Timezone = profile.Timezone
-	}
 }
 
 // geoStale reports whether the proxy settings changed since the geo

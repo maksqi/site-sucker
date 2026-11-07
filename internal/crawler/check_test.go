@@ -24,8 +24,7 @@ func TestCheckProxyDoesNotRequireSiteURL(t *testing.T) {
             "country_code":"IT",
             "region":"Sicily",
             "city":"Aci Catena",
-            "connection":{"isp":"NetLabs"},
-            "timezone":{"id":"Europe/Rome"}
+            "connection":{"isp":"NetLabs"}
         }`))
 	}))
 	defer server.Close()
@@ -42,10 +41,10 @@ func TestCheckProxyDoesNotRequireSiteURL(t *testing.T) {
 	if profile.IP != "203.0.113.7" || profile.Country != "Italy" || profile.CountryCode != "IT" {
 		t.Fatalf("profile = %#v", profile)
 	}
-	if profile.Locale != "it-IT" || profile.Timezone != "Europe/Rome" || profile.Flag == "" {
-		t.Fatalf("emulation profile = %#v", profile)
+	if profile.Flag == "" || profile.ISP != "NetLabs" {
+		t.Fatalf("profile = %#v", profile)
 	}
-	if summary := profile.Summary(); !strings.Contains(summary, "Italy") || !strings.Contains(summary, "Europe/Rome") {
+	if summary := profile.Summary(); !strings.Contains(summary, "Italy") || !strings.Contains(summary, "NetLabs") {
 		t.Fatalf("summary = %q", summary)
 	}
 	if receivedAuthorization != "" || receivedCookie != "" || receivedCustomHeader != "" {
@@ -53,10 +52,7 @@ func TestCheckProxyDoesNotRequireSiteURL(t *testing.T) {
 	}
 }
 
-func TestLocaleAndFlagForCountry(t *testing.T) {
-	if got := localeForCountry("IT"); got != "it-IT" {
-		t.Fatalf("localeForCountry(IT) = %q", got)
-	}
+func TestFlagForCountry(t *testing.T) {
 	if flag := countryFlag("IT"); len([]rune(flag)) != 2 {
 		t.Fatalf("countryFlag(IT) = %q", flag)
 	}

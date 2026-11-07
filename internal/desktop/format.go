@@ -225,8 +225,7 @@ func formatHeaders(headers map[string]string) string {
 
 // collectConfig turns the settings the window edits into the config the
 // engine takes: it trims the text fields and parses the header lines. For a
-// proxy check or the interactive browser (all false) the headers are left
-// out.
+// proxy check (all false) the headers are left out.
 func collectConfig(cfg config.Config, headersText string, all bool) (config.Config, error) {
 	c := cfg
 	c.StartURL = strings.TrimSpace(c.StartURL)
@@ -234,8 +233,6 @@ func collectConfig(cfg config.Config, headersText string, all bool) (config.Conf
 	c.Network.UserAgent = strings.TrimSpace(c.Network.UserAgent)
 	c.Network.Proxy.Address = strings.TrimSpace(c.Network.Proxy.Address)
 	c.Browser.ExecutablePath = strings.TrimSpace(c.Browser.ExecutablePath)
-	c.Browser.Locale = strings.TrimSpace(c.Browser.Locale)
-	c.Browser.Timezone = strings.TrimSpace(c.Browser.Timezone)
 	c.Scope.IncludePattern = strings.TrimSpace(c.Scope.IncludePattern)
 	c.Scope.ExcludePattern = strings.TrimSpace(c.Scope.ExcludePattern)
 	c.Authentication.Cookie = strings.TrimSpace(c.Authentication.Cookie)

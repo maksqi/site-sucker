@@ -5,7 +5,7 @@ go 1.27.3
 require (
 	github.com/chromedp/cdproto v0.159.1
 	github.com/chromedp/chromedp v0.21.1
-	github.com/egoist/mygo v0.7.4
+	github.com/egoist/mygo v0.7.5-0.20261103143559-69b1f9dc8359
 	github.com/temoto/robotstxt v1.1.2
 	golang.org/x/net v0.62.0
 )

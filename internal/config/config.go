@@ -1,6 +1,7 @@
 package config
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -10,7 +11,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
-	"time"
 )
 
 const (
@@ -86,9 +86,6 @@ type Browser struct {
 	AutoScroll       bool   `json:"auto_scroll"`
 	ViewportWidth    int    `json:"viewport_width"`
 	ViewportHeight   int    `json:"viewport_height"`
-	AutoGeo          bool   `json:"auto_geo"`
-	Locale           string `json:"locale"`
-	Timezone         string `json:"timezone"`
 }
 
 type Scope struct {
@@ -160,7 +157,6 @@ func Default() Config {
 			AutoScroll:       true,
 			ViewportWidth:    1440,
 			ViewportHeight:   900,
-			AutoGeo:          true,
 		},
 		Scope: Scope{
 			HostPolicy:     ScopeHost,
@@ -236,17 +232,6 @@ func (c Config) Validate() error {
 	if c.Browser.ViewportWidth < 320 || c.Browser.ViewportWidth > 16384 || c.Browser.ViewportHeight < 240 || c.Browser.ViewportHeight > 16384 {
 		return errors.New("browser window size is out of range")
 	}
-	if c.Browser.Locale != "" {
-		localePattern := regexp.MustCompile(`^[A-Za-z]{2,3}(?:-[A-Za-z]{2})?$`)
-		if !localePattern.MatchString(c.Browser.Locale) {
-			return errors.New("browser locale must look like it-IT or en-US")
-		}
-	}
-	if c.Browser.Timezone != "" {
-		if _, err := time.LoadLocation(c.Browser.Timezone); err != nil {
-			return fmt.Errorf("unknown browser timezone %q", c.Browser.Timezone)
-		}
-	}
 	switch c.Scope.HostPolicy {
 	case ScopeHost, ScopeDomain, ScopeAnyHost:
 	default:
@@ -299,11 +284,14 @@ func ProxyURL(p Proxy) (*url.URL, error) {
 	return u, nil
 }
 
+// legacyBrowserKeys are browser settings of older versions. Profiles that
+// still have them import, and the keys are dropped.
+var legacyBrowserKeys = []string{"auto_geo", "locale", "timezone"}
+
 func Decode(r io.Reader) (Config, error) {
-	c := Default()
+	var data json.RawMessage
 	decoder := json.NewDecoder(r)
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&c); err != nil {
+	if err := decoder.Decode(&data); err != nil {
 		return Config{}, err
 	}
 	var trailing any
@@ -313,7 +301,30 @@ func Decode(r io.Reader) (Config, error) {
 		}
 		return Config{}, err
 	}
+	c := Default()
+	strict := json.NewDecoder(bytes.NewReader(dropLegacyKeys(data)))
+	strict.DisallowUnknownFields()
+	if err := strict.Decode(&c); err != nil {
+		return Config{}, err
+	}
 	return c, c.Validate()
+}
+
+// dropLegacyKeys removes legacyBrowserKeys from the "browser" object of a
+// profile. Data without a "browser" object is returned as it is, for the
+// strict decode to report.
+func dropLegacyKeys(data json.RawMessage) json.RawMessage {
+	var profile, browser map[string]json.RawMessage
+	if json.Unmarshal(data, &profile) != nil || json.Unmarshal(profile["browser"], &browser) != nil || browser == nil {
+		return data
+	}
+	for _, key := range legacyBrowserKeys {
+		delete(browser, key)
+	}
+	// Both maps hold JSON that was just parsed, so marshaling cannot fail.
+	profile["browser"], _ = json.Marshal(browser)
+	out, _ := json.Marshal(profile)
+	return out
 }
 
 func Encode(w io.Writer, c Config) error {

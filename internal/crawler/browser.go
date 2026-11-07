@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/chromedp/cdproto/cdp"
-	"github.com/chromedp/cdproto/emulation"
 	"github.com/chromedp/cdproto/fetch"
 	"github.com/chromedp/cdproto/network"
 	"github.com/chromedp/chromedp"
@@ -64,12 +63,6 @@ func browserAllocatorOptions(cfg config.Config, bridge *proxyBridge) []chromedp.
 	)
 	if cfg.Browser.ExecutablePath != "" {
 		opts = append(opts, chromedp.ExecPath(cfg.Browser.ExecutablePath))
-	}
-	if cfg.Browser.Locale != "" {
-		opts = append(opts, chromedp.Flag("lang", normalizedLocale(cfg.Browser.Locale)))
-	}
-	if cfg.Browser.Timezone != "" {
-		opts = append(opts, chromedp.Env("TZ="+cfg.Browser.Timezone))
 	}
 	if bridge != nil {
 		opts = append(opts,
@@ -172,7 +165,6 @@ func (b *browserFetcher) fetch(ctx context.Context, target *url.URL, seedCookies
 	actions := []chromedp.Action[chromedp.Void]{
 		command(network.Enable, network.EnableParams{}),
 	}
-	actions = append(actions, browserEmulationActions(b.cfg)...)
 	if intercept {
 		actions = append(actions, command(fetch.Enable, fetch.EnableParams{HandleAuthRequests: new(b.cfg.Authentication.Username != "")}))
 	}
@@ -312,40 +304,6 @@ func toHTTPCookies(cookies []*network.Cookie) []*http.Cookie {
 		result = append(result, converted)
 	}
 	return result
-}
-
-func normalizedLocale(locale string) string {
-	parts := strings.Split(strings.TrimSpace(locale), "-")
-	if len(parts) == 2 {
-		return strings.ToLower(parts[0]) + "-" + strings.ToUpper(parts[1])
-	}
-	return strings.ToLower(strings.TrimSpace(locale))
-}
-
-func acceptLanguageForLocale(locale string) string {
-	locale = normalizedLocale(locale)
-	primary := strings.Split(locale, "-")[0]
-	if primary == "en" {
-		return locale + ",en;q=0.9"
-	}
-	return locale + "," + primary + ";q=0.9,en;q=0.8"
-}
-
-func browserEmulationActions(cfg config.Config) []chromedp.Action[chromedp.Void] {
-	var actions []chromedp.Action[chromedp.Void]
-	if cfg.Browser.Locale != "" {
-		locale := normalizedLocale(cfg.Browser.Locale)
-		actions = append(actions,
-			command(emulation.SetUserAgentOverride, emulation.SetUserAgentOverrideParams{
-				UserAgent: cfg.Network.UserAgent, AcceptLanguage: acceptLanguageForLocale(locale),
-			}),
-			command(emulation.SetLocaleOverride, emulation.SetLocaleOverrideParams{Locale: strings.ReplaceAll(locale, "-", "_")}),
-		)
-	}
-	if cfg.Browser.Timezone != "" {
-		actions = append(actions, command(emulation.SetTimezoneOverride, emulation.SetTimezoneOverrideParams{TimezoneID: cfg.Browser.Timezone}))
-	}
-	return actions
 }
 
 // command makes an action that sends a protocol command with no result.
